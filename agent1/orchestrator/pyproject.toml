@@ -1,0 +1,16 @@
+[project]
+name = "agent1-orchestrator"
+version = "0.1.0"
+description = "agent1 redteam orchestration skeleton: attacker/judge loop, budget breaker, garak adapter, tape bridge, report. Empty magazine -- no payloads/seeds/jailbreak scripts."
+requires-python = ">=3.10"
+dependencies = ["jsonschema>=4.20"]
+
+[project.optional-dependencies]
+bub = ["bub"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/agent1_orchestrator"]

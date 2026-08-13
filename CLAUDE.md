@@ -20,7 +20,16 @@ sentinel-agents 是一个**可审计的开源 AI 红队 agent team**：
 7. 讨论用中文，回复简洁直接。
 
 ## 当前阶段
-Phase 0（契约先行）。详见 `docs/roadmap.md`。下一步 = 写 `spec/`（C1/C2/C3 的 JSON Schema + 一致性测试），零外部依赖、可先落地立信。
+Phase 0（契约先行）已完成：`spec/schema/*.json` + `spec/tests/`（57 cases 全绿）。
+Phase 1（内核竖切面）闭环已验证：`agent0/dispatcher/`（bub 插件，tape → 事件 → turn，10 个离线单测全绿；
+手动跑通到模型调用边界，缺 key 属预期）。**环境注意**：真 bub 需 Python ≥3.12，装错版本会静默拿到无关
+旧包，用仓内 `uv venv` 隔离环境（见 `agent0/dispatcher/README.md`），不要直接 `pip install bub` 到系统
+Python。
+Phase 2（红队旗舰 MVP）编排骨架已完成：`agent1/orchestrator/`（Crescendo 回路 + 预算熔断 +
+`redteam.target.registered` 授权硬门 + garak subprocess 适配器 + tape 落盘 + OWASP 报告，39 测试全绿）。
+攻防内容（真实 attacker/judge 提示词）刻意留空——那是私有 skill，不进本仓。
+详见 `docs/roadmap.md`。
+下一步 = Phase 2 收尾（需私有 skill + 授权靶场，不在本仓范围）或 Phase 3（agent0 情报 + team 组合）。
 
 ## 设计来源
 详尽的设计演进史与决策记录保存在维护者的**私有规划库**（不在本仓）。本仓 `docs/` 是其面向公开的浓缩版，足以让本仓自洽运行。
