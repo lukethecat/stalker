@@ -27,15 +27,44 @@
 - 仅用于**对你自己拥有或获授权的**系统做防御性测试；启动强制登记授权范围。
 - 具体攻击 skill（弹药）走单独的私有 / 授权制分发，不在本仓。
 
-## 快速开始（WIP）
+## 现状（诚实说明）
+
+处于 Phase 0-2（见 `docs/roadmap.md`）：**契约 + 编排骨架已实现并有测试覆盖，真实攻击能力尚未接入**。
+
+| Phase | 产物 | 状态 |
+|---|---|---|
+| 0 契约先行 | `spec/schema/{c1_tape,c2_events,c3_skill}.schema.json` | ✅ 57 测试全绿，零外部依赖 |
+| 1 内核竖切面 | `agent0/dispatcher/` — bub 插件，tape→事件→turn | ✅ 已手动跑通到模型调用边界 |
+| 2 红队 MVP | `agent1/orchestrator/` — Crescendo 回路 + 授权硬门 + garak 适配器 + 报告 | ✅ 骨架完成，`examples/` 有可跑的端到端 toy demo；**真实 attacker/judge 提示词是私有 skill，不在本仓** |
+
+也就是说：`clone` 下来能装环境、能跑测试、能跑一个用完全抽象的玩具目标演示全链路的 demo，但**还不能直接拿它打真实目标**——那一步需要你自己的私有 skill（真实攻击方法论）和已授权的测试端点，这是刻意的架构边界（见下方"空弹匣声明"），不是没写完。
+
+## 快速开始
+
+需要 **Python ≥3.12**（真正的 [bub](https://github.com/bubbuild/bub) 硬性要求）和 [uv](https://docs.astral.sh/uv/)。
+`pip install bub` 在更低版本下会**静默装到一个 2024 年之前、完全不相关的旧同名包**（无 pluggy/tape），排错前先确认这一点。
 
 ```bash
-# 底座
-pip install bub            # 或 uv tool install bub
-# 配置模型 provider（litellm 兼容）与 Home 目录，详见 docs/
-bub gateway --home .       # 起服务后，直接在 bub 的 CLI/channel 里对话
+git clone https://github.com/lukethecat/sentinel-agents.git
+cd sentinel-agents
+
+# 隔离环境，不碰系统 Python
+uv venv --python 3.13 .venv
+uv pip install --python .venv/bin/python bub pytest
+uv pip install --python .venv/bin/python -e agent0/dispatcher -e agent1/orchestrator
+
+# 冒烟测试：跑通 register → 授权门 → Crescendo → finding → tape → 报告 全链路
+# （用完全抽象的玩具目标站位真实攻击内容，见 agent1/orchestrator/examples/README.md）
+.venv/bin/python agent1/orchestrator/examples/demo_run.py
+
+# 单元测试
+.venv/bin/python -m pytest spec/tests/ agent0/dispatcher/tests/ agent1/orchestrator/tests/ -v
 ```
-> 部署与"另一台机器 clone 即运行"的完整步骤见 `docs/`（随 Phase 推进补全）。
+
+各模块的详细说明、已知坑、下一步待办见各自 README：
+[`spec/README.md`](spec/README.md) ·
+[`agent0/dispatcher/README.md`](agent0/dispatcher/README.md) ·
+[`agent1/orchestrator/README.md`](agent1/orchestrator/README.md)
 
 ## 文档
 
