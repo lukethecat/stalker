@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sentinel-agents/spec/schema/c3_skill.schema.json",
+  "title": "C3 Skill Package Manifest",
+  "description": "Structured manifest for a skill package built on the Agent Skills standard, with L0-L3 progressive loading and a declaration of which C2 events it subscribes to / may emit, and where it mounts in the bub turn pipeline. This schema covers the machine-readable manifest (e.g. skill frontmatter/metadata); free-form skill body content (SKILL.md prose) is out of scope.",
+  "$defs": {
+    "schema_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "event_name": {
+      "type": "string",
+      "pattern": "^(ingest|redteam)\\.[a-z]+(\\.[a-z_]+)*$",
+      "description": "A C2 event name (see c2_events.schema.json)."
+    },
+    "layers": {
+      "type": "object",
+      "description": "L0-L3 progressive disclosure. L0 (name+description) is always resident in context; L1 is loaded when the skill triggers; L2/L3 are loaded on demand, L3 being the heaviest (scripts, datasets, large references).",
+      "properties": {
+        "l1_body": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Path to the skill's main body file (e.g. SKILL.md), loaded when the skill is triggered."
+        },
+        "l2_references": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Paths to reference files loaded on demand once the skill is active."
+        },
+        "l3_resources": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Paths to heavy resources (scripts, datasets, binaries) loaded only when explicitly invoked."
+        }
+      },
+      "required": ["l1_body"],
+      "additionalProperties": false
+    }
+  },
+  "type": "object",
+  "properties": {
+    "schema_version": { "$ref": "#/$defs/schema_version" },
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "description": "Kebab-case skill identifier (L0)."
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "description": "L0 summary, always resident in context; used to decide when to trigger the skill."
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Semver of this skill package itself."
+    },
+    "namespace": {
+      "type": "string",
+      "enum": ["agent0", "agent1", "shared"],
+      "description": "Which vertical this skill belongs to, or 'shared' for platform-level skills."
+    },
+    "license": { "type": "string" },
+    "layers": { "$ref": "#/$defs/layers" },
+    "mount_points": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "bub turn-pipeline hook names this skill attaches to. Left as free-form strings pending bub's own hook-name reference; validated for non-emptiness of each entry, not against a fixed enum."
+    },
+    "subscribes": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/event_name" },
+      "description": "C2 events this skill listens for."
+    },
+    "emits": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/event_name" },
+      "description": "C2 events this skill may write to the tape."
+    },
+    "allowed_tools": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "Optional allow-list of external tools this skill may invoke (mirrors Agent Skills allowed-tools)."
+    },
+    "requires_authorization": {
+      "type": "boolean",
+      "default": false,
+      "description": "If true, this skill must not run unless a redteam.target.registered entry with a non-expired authorization is present on the tape (house rule 5)."
+    }
+  },
+  "required": ["schema_version", "name", "description", "version", "namespace", "layers", "subscribes", "emits"],
+  "additionalProperties": false
+}

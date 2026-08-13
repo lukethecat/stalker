@@ -1,0 +1,140 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sentinel-agents/spec/schema/c1_tape.schema.json",
+  "title": "C1 Tape Format",
+  "description": "Append-only JSONL tape. Each physical line is either an `entry` (immutable fact, may carry decision rationale) or an `anchor` (phase boundary + state snapshot). Corrections happen by superseding a prior entry, never by deleting a line. `view` is a derived read-model assembled on demand from entry/anchor lines and is not itself a physical tape line; its shape is defined here under $defs/view for validating assembled output.",
+  "$defs": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Opaque unique identifier for a tape line (e.g. ULID/UUID)."
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "schema_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Semver of this tape line's shape, independent of payload/event schema versions."
+    },
+    "agent": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Identifier of the agent/skill that wrote this line, e.g. 'agent0', 'agent1', or a specific skill id."
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Identifier of the session/run this tape belongs to (ties to a Home directory)."
+    },
+    "seq": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Monotonically increasing sequence number within a single tape file, used for total ordering and view assembly ranges."
+    },
+    "entry": {
+      "type": "object",
+      "description": "An immutable fact. Corrections are made by appending a new entry with `supersedes` pointing at the id being corrected -- the superseded entry is never deleted or mutated.",
+      "properties": {
+        "schema_version": { "$ref": "#/$defs/schema_version" },
+        "type": { "const": "entry" },
+        "id": { "$ref": "#/$defs/id" },
+        "ts": { "$ref": "#/$defs/timestamp" },
+        "agent": { "$ref": "#/$defs/agent" },
+        "run_id": { "$ref": "#/$defs/run_id" },
+        "seq": { "$ref": "#/$defs/seq" },
+        "kind": {
+          "type": "string",
+          "pattern": "^[a-z]+(\\.[a-z_]+)+$",
+          "description": "Dotted namespace.subject.verb kind, typically aligned with a C2 event name (see c2_events.schema.json)."
+        },
+        "data": {
+          "type": "object",
+          "description": "The immutable fact payload. Shape is kind-specific and constrained further by C2 where `kind` matches a registered event name."
+        },
+        "rationale": {
+          "type": "string",
+          "description": "Why this fact/decision was recorded -- required for entries that represent an agentic decision point (see house rule: everything observable)."
+        },
+        "supersedes": {
+          "$ref": "#/$defs/id",
+          "description": "Id of a prior entry this one corrects/replaces. Absent for non-correcting entries."
+        },
+        "refs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/id" },
+          "description": "Ids of other entries this one causally depends on or references."
+        }
+      },
+      "required": ["schema_version", "type", "id", "ts", "agent", "run_id", "seq", "kind", "data"],
+      "additionalProperties": false
+    },
+    "anchor": {
+      "type": "object",
+      "description": "A phase boundary marker carrying a state snapshot.",
+      "properties": {
+        "schema_version": { "$ref": "#/$defs/schema_version" },
+        "type": { "const": "anchor" },
+        "id": { "$ref": "#/$defs/id" },
+        "ts": { "$ref": "#/$defs/timestamp" },
+        "agent": { "$ref": "#/$defs/agent" },
+        "run_id": { "$ref": "#/$defs/run_id" },
+        "seq": { "$ref": "#/$defs/seq" },
+        "phase": {
+          "type": "string",
+          "minLength": 1,
+          "description": "IPO phase name, e.g. Collect/Structure/Judge/Publish (agent0) or Recon/BuildProbes/Attack/Score/Report/Retest (agent1)."
+        },
+        "state": {
+          "type": "object",
+          "description": "Snapshot of accumulated state as of this phase boundary."
+        },
+        "prev_anchor": {
+          "anyOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }],
+          "description": "Id of the previous anchor in this run, or null for the first anchor."
+        }
+      },
+      "required": ["schema_version", "type", "id", "ts", "agent", "run_id", "seq", "phase", "state"],
+      "additionalProperties": false
+    },
+    "tape_line": {
+      "description": "A single physical JSONL row on the tape.",
+      "oneOf": [{ "$ref": "#/$defs/entry" }, { "$ref": "#/$defs/anchor" }]
+    },
+    "view": {
+      "type": "object",
+      "description": "Derived, on-demand read-model assembled from a range of tape lines with supersede resolution applied. Not persisted as a tape line; may be cached but is never authoritative -- the tape itself is authoritative.",
+      "properties": {
+        "schema_version": { "$ref": "#/$defs/schema_version" },
+        "run_id": { "$ref": "#/$defs/run_id" },
+        "generated_at": { "$ref": "#/$defs/timestamp" },
+        "source_range": {
+          "type": "object",
+          "properties": {
+            "from_seq": { "$ref": "#/$defs/seq" },
+            "to_seq": { "$ref": "#/$defs/seq" }
+          },
+          "required": ["from_seq", "to_seq"],
+          "additionalProperties": false
+        },
+        "phase": {
+          "type": ["string", "null"],
+          "description": "Phase this view was assembled for, if scoped to one."
+        },
+        "entries": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/entry" },
+          "description": "Entries in range with superseded entries resolved out (or annotated, depending on assembly mode)."
+        },
+        "state": {
+          "type": "object",
+          "description": "Merged state as of the end of source_range."
+        }
+      },
+      "required": ["schema_version", "run_id", "generated_at", "source_range", "entries", "state"],
+      "additionalProperties": false
+    }
+  },
+  "$ref": "#/$defs/tape_line"
+}
