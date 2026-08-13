@@ -11,3 +11,7 @@ build/
 .vscode/
 *.log
 data/
+# tape / Home 运行时产物不入库（可搬家靠 tar Home，不靠 git）
+tapes/
+artifacts/
+workspace/
