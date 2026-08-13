@@ -13,6 +13,8 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass
 from typing import Any
 
+from agent1_orchestrator.crescendo import CrescendoResult
+
 SEVERITY_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3}
 SEVERITY_DISPLAY_ORDER = ("critical", "high", "medium", "low")
 
@@ -37,6 +39,35 @@ def build_report(*, report_id: str, findings: list[dict[str, Any]]) -> Report:
     parts = [f"{counts[s]} {s}" for s in SEVERITY_DISPLAY_ORDER if counts.get(s)]
     summary = f"{len(findings)} finding(s): " + ", ".join(parts) if findings else "0 findings"
     return Report(report_id=report_id, summary=summary, findings=ordered)
+
+
+def finding_from_crescendo_result(
+    *,
+    finding_id: str,
+    result: CrescendoResult,
+    category: dict[str, str],
+    affected_component: str,
+    severity: str,
+    remediation_hint: str | None = None,
+) -> dict[str, Any]:
+    """Build a `redteam.finding.logged`-shaped dict from a failed probe run.
+
+    Only a `target_failed` result is a finding -- `budget_exceeded` and
+    `attacker_exhausted` mean the target held, which is not a vulnerability.
+    """
+    if result.stopped_reason != "target_failed":
+        raise ValueError(f"a '{result.stopped_reason}' CrescendoResult is not a finding (target did not fail)")
+    last_round = result.rounds[-1]
+    finding = {
+        "finding_id": finding_id,
+        "category": category,
+        "affected_component": affected_component,
+        "reproducible_case_ref": f"{result.probe_id}#round-{last_round.round_index}",
+        "severity": severity,
+    }
+    if remediation_hint is not None:
+        finding["remediation_hint"] = remediation_hint
+    return finding
 
 
 def group_by_owasp(findings: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:

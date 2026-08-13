@@ -54,16 +54,28 @@ except NotAuthorized:
 （`tests/test_runner.py::test_does_not_run_attacker_when_unauthorized`）验证了未授权时
 attacker 一次都不会被调用，不是"跑完再报错"。
 
+## 端到端 demo（mock 私有 skill + mock 授权靶场）
+
+`examples/` 用一个完全抽象的 LOCKED/UNLOCKED 玩具状态机站位真实的
+attacker/judge/target，把 register → 授权门 → Crescendo → finding → tape → report
+全链路跑一遍，证明骨架是接得通的——不构成任何真实攻击方法论（见
+`examples/README.md`）：
+
+```bash
+python3 agent1/orchestrator/examples/demo_run.py           # tape 步骤跳过（无 bub）
+.venv/bin/python agent1/orchestrator/examples/demo_run.py  # 含 tape 落盘的完整版本
+```
+
 ## 测试
 
 ```bash
-python3 -m pytest agent1/orchestrator/tests/ -v          # 39 项里 tape_bridge 相关会 skip（无 bub）
-.venv/bin/python -m pytest agent1/orchestrator/tests/ -v # 全量 39 项，含 tape_bridge + 与 agent0-ipo-dispatcher 的互操作校验
+python3 -m pytest agent1/orchestrator/tests/ -v          # 41 passed + 2 skipped（tape_bridge 相关需 bub）
+.venv/bin/python -m pytest agent1/orchestrator/tests/ -v # 全量 46 passed，含 tape_bridge + 与 agent0-ipo-dispatcher 的互操作校验
 ```
 
-## 还没做的（Phase 2 剩余）
+## 还没做的（Phase 2 剩余，需要真正的私有 skill + 授权靶场，不在本仓范围）
 
-- 真实 attacker/judge 策略（私有 skill，不进本仓）。
+- 真实 attacker/judge 策略（私有 skill，不进本仓；`examples/` 的 toy 版本只验证机制）。
 - garak 真实调用的一次手动验证（本仓开发环境没装 garak，也没有已授权的测试端点）。
 - CLI 入口（`bub run` 风格，把 `run_authorized_crescendo` 接到 agent0-ipo-dispatcher 的
   `redteam.target.registered` 触发链路上，实现"注册目标 → 自动起 probe"）。

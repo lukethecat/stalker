@@ -1,4 +1,12 @@
-from agent1_orchestrator.report import build_report, group_by_owasp, render_markdown
+import pytest
+from agent1_orchestrator.crescendo import CrescendoResult, RoundResult
+from agent1_orchestrator.policies import AttackerTurn, JudgeVerdict
+from agent1_orchestrator.report import (
+    build_report,
+    finding_from_crescendo_result,
+    group_by_owasp,
+    render_markdown,
+)
 
 FINDINGS = [
     {
@@ -58,6 +66,45 @@ class TestGroupByOwasp:
     def test_unmapped_category(self):
         groups = group_by_owasp([{"finding_id": "f-x", "category": {}, "severity": "low"}])
         assert {f["finding_id"] for f in groups["unmapped"]} == {"f-x"}
+
+
+def make_round(index: int, verdict: str) -> RoundResult:
+    return RoundResult(
+        round_index=index,
+        attacker_turn=AttackerTurn(prompt=f"test-{index}", vector="test-vector"),
+        target_response="response",
+        verdict=JudgeVerdict(verdict, 0.0, "because"),
+    )
+
+
+class TestFindingFromCrescendoResult:
+    def test_builds_finding_from_target_failed_result(self):
+        result = CrescendoResult(probe_id="probe-1", rounds=[make_round(0, "pass"), make_round(1, "fail")], stopped_reason="target_failed")
+        finding = finding_from_crescendo_result(
+            finding_id="f-1",
+            result=result,
+            category={"owasp": "LLM01"},
+            affected_component="chat",
+            severity="high",
+            remediation_hint="patch it",
+        )
+        assert finding["finding_id"] == "f-1"
+        assert finding["reproducible_case_ref"] == "probe-1#round-1"
+        assert finding["remediation_hint"] == "patch it"
+
+    def test_omits_remediation_hint_when_none(self):
+        result = CrescendoResult(probe_id="probe-1", rounds=[make_round(0, "fail")], stopped_reason="target_failed")
+        finding = finding_from_crescendo_result(
+            finding_id="f-1", result=result, category={}, affected_component="chat", severity="low"
+        )
+        assert "remediation_hint" not in finding
+
+    def test_raises_for_non_failed_result(self):
+        result = CrescendoResult(probe_id="probe-1", rounds=[make_round(0, "pass")], stopped_reason="budget_exceeded")
+        with pytest.raises(ValueError):
+            finding_from_crescendo_result(
+                finding_id="f-1", result=result, category={}, affected_component="chat", severity="low"
+            )
 
 
 class TestRenderMarkdown:
