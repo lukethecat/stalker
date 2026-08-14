@@ -20,8 +20,9 @@
 **目标**：`garak_scan` 打一个授权端点 → 从 dsh session log 派生一页证据报告——跑通"骑在 dsh 上出可审计红队报告"，这就是 EU AI Act 第55条要的"红队方法论留痕"原型。
 
 - [x] 本机 mock LLM 端点（自授权）端到端验证 garak_scan（插件 seam #2：garak 0.16 JSONL 字段解析）
-- [ ] `redteam.target.registered` / `redteam.finding.logged` 等 C2 事件从 session log 派生（与 spec 对齐）
-- [ ] 证据报告插件/脚本：session log → 一页 Markdown（目标 + 授权 + per-probe 命中 + OWASP/ATLAS 映射）
+- [x] `scripts/derive-evidence.mjs`：session log → C2 `redteam.*` 事件（target.registered / metric.updated / report.ready，schema 校验通过）+ 一页 campaign 证据报告（含 fixture 端到端测试）
+- [ ] 首次真实 `garak_scan` 工具调用落 session log 后，用 derive-evidence 派生整链证据
+- [ ] per-probe 发现映射 OWASP / MITRE ATLAS（Phase 3 前的最小映射表）
 
 ## Phase 3 — 红队优化回路（attacker/judge 插件）
 
