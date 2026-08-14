@@ -1,0 +1,14 @@
+{
+  "name": "redteam-crescendo-pack",
+  "version": "0.1.0",
+  "description": "Private attack skill manifest. Ammo lives in this package, never in the public repo. (Manifest only — no payloads here.)",
+  "triggers": ["redteam.probe.built"],
+  "io_contract": { "input": "probe + authorized target", "output": "attack rounds + findings" },
+  "layers": { "l0": "multi-turn escalation orchestration over an authorized target" },
+  "subscribes": ["redteam.probe.built"],
+  "emits": ["redteam.attack.round.completed", "redteam.finding.logged"],
+  "mount_points": ["run_model"],
+  "visibility": "private",
+  "authorization_required": true,
+  "contains_attack_payloads": true
+}

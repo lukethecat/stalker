@@ -1,0 +1,7 @@
+{
+  "since_anchor": "01A",
+  "kinds": ["event"],
+  "event_names": ["redteam.*"],
+  "include_superseded": false,
+  "limit": 50
+}

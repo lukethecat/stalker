@@ -1,7 +1,7 @@
-# CLAUDE.md — stalker（红蓝攻防作战室）
+# AGENTS.md — stalker（红蓝攻防作战室）
 
 > **每次开工先读本文件 + `docs/architecture.md` + `docs/roadmap.md`，再动手。**
-> 本文件与 `AGENTS.md` 内容一致（dsh 会话自动加载 AGENTS.md，Claude Code 读 CLAUDE.md），修改时同步更新两份。
+> 本文件与 `CLAUDE.md` 内容一致（dsh 会话自动加载 AGENTS.md，Claude Code 读 CLAUDE.md），修改时同步更新两份。
 > 完整交接文档与私有决策记录在维护者本机规划库（不公开）；本仓文档是其公开浓缩版，足以让本仓自洽运行。
 
 ## 一句话

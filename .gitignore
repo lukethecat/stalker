@@ -15,3 +15,6 @@ data/
 tapes/
 artifacts/
 workspace/
+# dsh 会话工作区产物（本目录同时是本地 dsh 会话工作区）
+.warroom/
+.pytest_cache/

@@ -1,0 +1,13 @@
+[project]
+name = "sentinel-spec"
+version = "0.1.0"
+description = "sentinel-agents contracts (C1 tape / C2 events / C3 skill) + conformance tests"
+requires-python = ">=3.10"
+dependencies = ["jsonschema>=4.20"]
+
+[project.optional-dependencies]
+test = ["pytest>=7"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

@@ -1,45 +1,54 @@
 # 路线图
 
-原则：不写框架，先跑通最细的竖切面；从第一天起产出全落 tape（吃自己的狗粮）。
+原则：不写框架，先跑通最细的竖切面；从第一天起所有产出落 dsh session log（吃自己的狗粮）。
 
 ## Phase 0 — 契约先行（立信）✅ 已完成
-`spec/`：把 C1 / C2 / C3 写成 JSON Schema + 一致性测试（tape 读写 roundtrip、跨版本读取、事件 payload 校验）。
-- 零外部依赖（不需 bub、不需 API key），可完整落地并测试。
-- 三份决策共同指认的"第一个可信物"，也是开源立信的地基。
-- 交付物：`spec/schema/*.json` + `spec/tests/`（pytest，57 cases 全绿）+ `spec/README.md`。
 
-## Phase 1 — 内核竖切面 ✅ 闭环已验证（工具链细节见下）
-`agent0/dispatcher/`：`agent0-ipo-dispatcher` 插件（bub `Lifecycle` channel，~95 行）监听 tape 新
-`event` entry → 按 skill 声明的订阅 pattern 匹配 → 触发 turn。
-- **环境陷阱**：真正的 bub（pluggy hook-first）要求 Python ≥3.12；`pip install bub` 在 3.11 下会静默
-  装到一个不相关的旧版同名包（无 pluggy/tape）。用 `uv venv --python 3.13` 在仓内建隔离环境，详见
-  `agent0/dispatcher/README.md`。
-- 已验证：`bub hooks` 确认插件挂载到 `provide_channels`；手动跑 `bub gateway` + 追加一条
-  `redteam.target.registered` tape entry，日志证实 dispatcher 正确匹配、转发、触发了
-  `process_inbound`，链路在模型调用这一步因缺 `OPENROUTER_API_KEY` 报错终止（预期内——本仓开发环境
-  未配置任何 provider key，这一步需要用户在自己机器上配 key 手动跑一次）。
-- 离线单元测试（10 cases，`agent0/dispatcher/tests/`）覆盖匹配/去重/无订阅/无 tape store，不需要 key。
+`spec/`：C1 / C2 / C3 写成 JSON Schema + 参考校验器 + 一致性测试。
+- 零外部依赖（不依赖任何运行时、不需 API key），可完整落地并测试。
+- 两条硬不变量编码进 schema：**授权门**（无授权不可登记目标）、**空弹匣边界**（含弹药即强制私有）。
+- 交付物：`spec/schema/*.json` + `spec/sentinel_spec/conformance.py` + `spec/tests/`（pytest，26 cases 全绿）+ 可校验示例。
 
-## Phase 2 — 红队旗舰 MVP（能 demo 的垂直）← 编排骨架已完成，等私有 skill + 授权靶场接入
-`agent1/orchestrator/`：Crescendo 回合循环 + 预算熔断 + `redteam.target.registered` 授权门
-（硬门，未授权 attacker 一轮都不会跑，见 `tests/test_runner.py`）+ garak subprocess 适配器
-（argv list 调用，不猜测 garak 报告 schema，交给调用方过滤）+ tape 落盘（C2 事件校验后写 bub
-tape，与 `agent0-ipo-dispatcher` 互操作已测）+ OWASP 分组 Markdown 报告。39 个测试全绿
-（`tape_bridge` 相关需 bub，其余框架无关）。
-- **"空弹匣"边界**：`policies.py` 只有 `AttackerPolicy`/`JudgePolicy`/`TargetClient` 三个
-  Protocol，零提示词/种子/话术；真实 Crescendo/GOAT/TAP 内容是私有 skill，本仓无法、也不应该
-  产出完整可跑的攻击演示。
-- **待办**（需要私有 skill + 已授权测试端点，不在本仓范围内）：真实 attacker/judge 策略、
-  一次真实 garak 调用验证、`bub run` 风格 CLI 把 `redteam.target.registered` 接上
-  `agent0-ipo-dispatcher` 触发链路、ASR/queries-per-attack/heatmap 指标聚合、tape 回放 UI。
+## Phase 1 — 第一个 dsh 插件 ✅ 已完成
 
-## Phase 3 — agent0 情报 + team 组合
-agent0 recon 喂 agent1（`redteam.intel.ingested`），验证 operator equivalence 的跨 agent 协作；可接 Raft/dispatcher。Aperture（日报）留在自己的仓，作为"同一引擎另一垂直"的旁证，不进本仓。
+[`lukethecat/dsh-plugin-warroom-garak`](https://github.com/lukethecat/dsh-plugin-warroom-garak)：
+- `garak_scan` 工具：授权门（硬拒）+ 预算熔断（`maxGenerations`）+ garak subprocess + JSONL 解析 + 证据报告落盘。
+- 已发布 GitHub、已挂载进本机 dsh profile、`garak_scan` 工具可用。
 
-## Phase 4 — 私有 contrib + 分发
-弹药（攻击 / 舆情 / 备案题库 skill）进**私有仓**、授权制（私有 pip index / license key）。打包与公开发布（三仓：spec / kernel+agent0+harness / 私有 skill）。
+## Phase 2 — 最小竖切面（证据报告）🔄 进行中
+
+**目标**：`garak_scan` 打一个授权端点 → 从 dsh session log 派生一页证据报告——跑通"骑在 dsh 上出可审计红队报告"，这就是 EU AI Act 第55条要的"红队方法论留痕"原型。
+
+- [x] 本机 mock LLM 端点（自授权）端到端验证 garak_scan（插件 seam #2：garak 0.16 JSONL 字段解析）
+- [ ] `redteam.target.registered` / `redteam.finding.logged` 等 C2 事件从 session log 派生（与 spec 对齐）
+- [ ] 证据报告插件/脚本：session log → 一页 Markdown（目标 + 授权 + per-probe 命中 + OWASP/ATLAS 映射）
+
+## Phase 3 — 红队优化回路（attacker/judge 插件）
+
+- attacker/judge 双模型最小回路（先 **Crescendo** 一种 + 预算熔断），judge 结果落日志；
+- `redteam.strategy.adjusted`：读 ASR/覆盖度决定下一向量（验证 agentic，对比"跑死列表"）；
+- 全程可回放：整个 campaign 即 session log。
+
+## Phase 4 — 区域包 + agent0 recon + purple team
+
+- cn（GB/T 45654）/ eu（AI Act）合规包做成 dsh **bundle/profile**；
+- agent0 recon 接现成采集插件（OpenBiliClaw 类）做薄适配器；
+- promptfoo 回归用例 + 蓝队补丁 re-test 闭环。
+
+## Phase 5 — 私有弹药（授权制分发）
+
+攻击 / 舆情 / 备案题库 skill 进私有仓、授权制分发（私有 index / license key）。开源版空弹匣，授权版装弹。
 
 ## 贯穿事项
-- 每步产出（含失败）落 tape。
-- 冷搬家验证：tar Home → 另一台机器 / clone 即运行 → tape replay 验证决策历史完整。
-- README 的"另一台机器 clone 即部署运行"随 Phase 1–2 补全为可复现步骤。
+
+- 每步产出（含失败）落 session log；领域事件用 `redteam.*` 命名空间（C2）。
+- 锁 dsh 版本；dsh 破坏性变更当例行维护（契约层隔离）。
+- 冷搬家验证：另一台机器 clone + 装 dsh + 重放 session log，验证决策历史完整。
+
+## 开放问题
+
+- agent0 recon 直接消费 OBC 的 Agent Bridge 还是自建轻 Provider（红队要的"目标/竞品/舆情情报"OBC 覆盖多少待评估）。
+- PyRIT（Python 库）在 dsh 上走 subprocess 还是常驻 sidecar。
+- 区域包/init 用 dsh profile/bundle/patch 的具体落法。
+- datapool/finding schema 最终定稿（与 C2/C3 合并推进）。
+- 供应商观感对冲的最终形态（Cordis 命名 / 可选 bub 部署）。

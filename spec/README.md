@@ -1,22 +1,36 @@
-# spec — 三份契约（Phase 0，已完成）
+# spec — 三份契约 (C1 / C2 / C3)
 
-契约是本项目的**本体**；内核与插件都是其可替换实现。本目录容纳可机读的契约与一致性测试。
+契约是本项目的**本体**;内核与插件都是其可替换实现。本目录含可机读的 JSON Schema、一份参考校验器,以及一致性测试。
 
-## 产物
-- `schema/c1_tape.schema.json` — C1 Tape 格式（entry / anchor / view，append-only，supersede 修正）
-- `schema/c2_events.schema.json` — C2 事件 taxonomy（`ingest.*` 开放命名 / `redteam.*` 封闭枚举，含 9 个 `docs/architecture.md` 定义的事件 + payload 校验）
-- `schema/c3_skill.schema.json` — C3 Skill 包格式（manifest：L0–L3 分层加载 + 事件订阅/emit 声明 + bub 挂载点）
-- `tests/` — pytest 一致性测试（57 cases）：tape 读写 roundtrip、supersede 语义（append-only，view 侧解析）、跨 schema_version 读取、C2 事件 payload 校验、C3 manifest 与 C2 事件命名的交叉校验
+## 内容
+```
+schema/
+  c1_tape.schema.json    # C1 tape entry（event/anchor/…，append-only，supersede 修正）
+  c1_view.schema.json    # C1 view 查询（按需组装上下文窗口）
+  c2_events.schema.json  # C2 事件（ingest.* / redteam.*；含授权门等硬不变量）
+  c3_skill.schema.json   # C3 skill 包（Agent Skills + L0-L3 + 事件订阅 + 公开/私有边界）
+sentinel_spec/
+  conformance.py         # 参考校验器：load/validate、tape 读写、view 组装、跨版本兼容
+examples/                # 可校验的示例实例（tape / skill / view）
+tests/                   # pytest 一致性测试
+```
 
-## 已知未决 / 留给后续 Phase
-- `ingest.*`（agent0）事件目录暂未枚举具体事件名（只在 `docs/architecture.md` 中定义了 IPO 阶段 Collect/Structure/Judge/Publish），schema 里对该命名空间保持开放（正则约束，非枚举）。计划 Phase 3（agent0 落地）时收紧为封闭枚举，需要 schema_version bump。
-- `c3_skill.schema.json` 的 `mount_points` 是自由字符串（bub 的 turn pipeline 七阶段 hook 名称尚未在本仓文档中固定），Phase 1 写 `agent0-ipo-dispatcher` 插件时对照 bub 实际 hook 名补一个枚举。
+## 编码进 schema 的两条关键不变量
+- **授权门**：`redteam.target.registered` 的 `authorization.authorized` 必须为 `true` 且带 `scope`,否则不合法——无授权不可登记目标。
+- **空弹匣边界**：C3 中 `contains_attack_payloads: true` 的 skill 强制 `visibility: private` 且 `authorization_required: true`——弹药不得公开。
 
 ## 跑测试
+```bash
+cd spec
+pip install -e ".[test]"     # 或: pip install jsonschema pytest
+pytest -q
 ```
-python3 -m pytest spec/tests/ -v
-```
-依赖：`pytest`、`jsonschema`（均为 pip 包，非 bub / API key，符合"零外部依赖"的立信要求）。
 
-## 为何先做这个
-零外部依赖（不需 bub / API key），可完整落地并测试，是开源立信的第一个可信物。详见 `../docs/roadmap.md`。
+## 覆盖的一致性检查
+- 四个 schema 自身合法（Draft 2020-12）
+- 示例 tape 全部 entry 合法;JSONL 读写 roundtrip 幂等;id 唯一;supersede 指向已存在的更早 entry
+- anchor 必带 state contract（phase/summary/next_steps/source_ids）
+- view 组装正确丢弃被 supersede 的 entry、按 kind 与事件名过滤
+- C2 授权门负测试（未授权/缺授权即失败）、事件命名空间约束、finding 必须映射标准 taxonomy、metric ASR 值域
+- C3 公开/私有边界负测试（公开仓不得含弹药）、L0 必需、挂载点枚举
+- 跨版本：同 major 可读,未来 patch 版本 entry 仍可校验

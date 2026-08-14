@@ -1,0 +1,13 @@
+{
+  "name": "agent0-recon",
+  "version": "0.1.0",
+  "description": "Collect and structure intel to enable context-relevant probing.",
+  "triggers": ["campaign.start"],
+  "io_contract": { "input": "target brief", "output": "structured intel in datapool" },
+  "layers": { "l0": "Collect -> Structure -> Judge -> Publish" },
+  "subscribes": ["ingest.source.fetched"],
+  "emits": ["ingest.item.structured"],
+  "mount_points": ["provide_channels", "save_state"],
+  "visibility": "public",
+  "contains_attack_payloads": false
+}

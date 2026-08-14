@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sentinel-agents.dev/spec/c1_view.schema.json",
+  "title": "C1 View Query",
+  "description": "A query that assembles an on-demand context window from a tape. Views are derived, never stored as truth.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "since_anchor": { "type": "string", "minLength": 1, "description": "Include entries from this anchor id onward." },
+    "kinds": { "type": "array", "items": { "enum": ["event", "anchor", "message", "tool_call", "tool_result", "model_output", "note"] } },
+    "event_names": { "type": "array", "items": { "type": "string" }, "description": "Glob patterns over C2 event names (e.g. redteam.*)." },
+    "limit": { "type": "integer", "minimum": 1, "description": "Keep at most the last N entries after filtering." },
+    "include_superseded": { "type": "boolean", "description": "If false (default), entries pointed at by a `supersedes` are dropped." }
+  }
+}
