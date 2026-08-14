@@ -24,6 +24,44 @@ import { basename, join, resolve } from 'node:path'
 const [, , inputArg, outFlag, outDirArg] = process.argv
 const outDir = resolve(outFlag === '--out' && outDirArg ? outDirArg : '.warroom/evidence')
 
+// Probe-family -> OWASP/ATLAS mapping (data/probe-taxonomy.json). Optional: the report
+// simply omits the mapping section when the file is missing.
+let taxonomyFamilies = {}
+try {
+  const taxonomy = JSON.parse(readFileSync(new URL('../data/probe-taxonomy.json', import.meta.url), 'utf8'))
+  taxonomyFamilies = taxonomy.families ?? {}
+} catch {
+  console.error('[derive-evidence] warning: data/probe-taxonomy.json not found; mapping section skipped')
+}
+
+function familyOf(probe) {
+  return String(probe).split('.')[0]
+}
+
+function taxonomyRows(campaigns) {
+  if (Object.keys(taxonomyFamilies).length === 0) return '| (未加载 data/probe-taxonomy.json) | | |'
+  const seen = new Set()
+  const rows = []
+  for (const c of campaigns) {
+    for (const p of c.probes) {
+      const f = familyOf(p)
+      const key = `${c.campaignId}::${f}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      const t = taxonomyFamilies[f]
+      if (!t) {
+        rows.push(`| ${c.campaignId} | \`${f}\` | (未收录) | (未收录) |`)
+        continue
+      }
+      rows.push(
+        `| ${c.campaignId} | \`${f}\` | ${(t.owasp_llm ?? []).map((x) => `\`${x}\``).join(', ') || '(无)'} | ${(t.mitre_atlas ?? []).map((x) => `\`${x}\``).join(', ') || '(无)'} |`,
+      )
+    }
+  }
+  if (rows.length === 0) return '| (无探针记录) | | |'
+  return `| campaign_id | 探针族 | OWASP LLM Top10 | MITRE ATLAS |\n|---|---|---|---|\n${rows.join('\n')}`
+}
+
 function sessionJsonlPath(input) {
   let s = statSync(input)
   if (s.isDirectory()) {
@@ -146,7 +184,7 @@ function main() {
       },
     })
 
-    campaigns.push({ campaignId, targetId, auth, summary, hitPct, reportPath, ts, callId })
+    campaigns.push({ campaignId, targetId, auth, summary, hitPct, reportPath, ts, callId, probes: Array.isArray(call.args.probes) ? call.args.probes : [] })
   }
 
   if (campaigns.length === 0) {
@@ -180,13 +218,16 @@ ${rows}
 - \`redteam.report.ready\` ×${events.filter((e) => e.name === 'redteam.report.ready').length}
 - 完整事件流：\`${eventsPath}\`（对齐 \`spec/schema/c2_events.schema.json\`）
 
+## 探针 → 标准映射（基线标注）
+${taxonomyRows(campaigns)}
+
 ## 留痕链（audit trail）
 1. dsh session log 记录 \`garak_scan\` 调用（参数含授权范围、rest_config、探针、预算）与结果 —— 不可变，可重放。
 2. 每份详细证据报告由插件落盘（含 per-probe 命中表），路径见上表。
 3. 本报告把两者缝合为一页：谁、何时、对什么授权目标、跑了什么、命中多少、报告在哪。
 
-## 发现映射（Phase 3）
-per-probe 发现到 OWASP LLM Top10 / MITRE ATLAS / NIST AI RMF 的映射在 Phase 3 attacker/judge 回路后接入。
+> 映射为**探针族级粗粒度基线标注**（\`data/probe-taxonomy.json\`，OWASP LLM Top10 2025 / MITRE ATLAS v6）。
+> 精确到探针级的映射与 severity 判定在 Phase 3 judge 接入后细化。
 `
 
   const mdPath = join(outDir, `campaign-${new Date().toISOString().slice(0, 10)}.md`)
