@@ -43,8 +43,8 @@ function taxonomyRows(campaigns) {
   const seen = new Set()
   const rows = []
   for (const c of campaigns) {
-    for (const p of c.probes) {
-      const f = familyOf(p)
+    const families = c.probes && c.probes.length > 0 ? c.probes.map(familyOf) : [c.method ?? 'unknown']
+    for (const f of families) {
       const key = `${c.campaignId}::${f}`
       if (seen.has(key)) continue
       seen.add(key)
@@ -59,7 +59,7 @@ function taxonomyRows(campaigns) {
     }
   }
   if (rows.length === 0) return '| (无探针记录) | | |'
-  return `| campaign_id | 探针族 | OWASP LLM Top10 | MITRE ATLAS |\n|---|---|---|---|\n${rows.join('\n')}`
+  return `| campaign_id | 探针族/方法 | OWASP LLM Top10 | MITRE ATLAS |\n|---|---|---|---|\n${rows.join('\n')}`
 }
 
 function sessionJsonlPath(input) {
@@ -135,15 +135,18 @@ function main() {
   const events = []
   const campaigns = []
   for (const [callId, call] of calls) {
-    if (call.name !== 'garak_scan' || !call.args) continue
+    const isGarak = call.name === 'garak_scan'
+    const isRedloop = call.name === 'redloop_attack'
+    if ((!isGarak && !isRedloop) || !call.args) continue
     const auth = call.args.authorization ?? {}
     const targetId = String(call.args.target_id ?? '')
     const summary = results.get(callId) ?? ''
-    const campaignId = `garak-${targetId.replace(/[^a-zA-Z0-9_-]/g, '_')}-${call.seq}`
+    const kind = isRedloop ? 'redloop' : 'garak'
+    const campaignId = `${kind}-${targetId.replace(/[^a-zA-Z0-9_-]/g, '_')}-${call.seq}`
     const ts = new Date(call.time ?? Date.now()).toISOString()
 
     if (auth.authorized !== true || typeof auth.scope !== 'string' || !auth.scope.trim()) {
-      console.error(`[derive-evidence] skipping garak_scan call ${callId}: missing authorization gate`)
+      console.error(`[derive-evidence] skipping ${call.name} call ${callId}: missing authorization gate`)
       continue
     }
 
@@ -161,7 +164,69 @@ function main() {
       },
     })
 
-    // redteam.metric.updated — hit rate from the tool summary as ASR.
+    if (isRedloop) {
+      // redloop_attack writes its full event stream to a campaign JSONL next to the
+      // evidence report. When available, those events are the authoritative record
+      // (attack.round.completed / strategy.adjusted / finding.logged / metric / report);
+      // otherwise synthesize the essentials from the summary.
+      const reportPath = /Evidence report:\s*(\S+)/i.exec(summary)?.[1] ?? null
+      const campaignFile = reportPath ? reportPath.replace(/\.md$/, '.jsonl') : null
+      let loaded = null
+      if (campaignFile) {
+        try {
+          loaded = readFileSync(campaignFile, 'utf8')
+            .split('\n')
+            .map((l) => l.trim())
+            .filter(Boolean)
+            .map((l) => JSON.parse(l))
+        } catch {
+          loaded = null
+        }
+      }
+      if (loaded && loaded.length > 0) {
+        // The campaign file already contains its own target.registered — skip it to
+        // avoid a duplicate of the gate event emitted above.
+        for (const ev of loaded) {
+          if (ev?.name === 'redteam.target.registered') continue
+          events.push(ev)
+        }
+      } else {
+        const asr = /ASR\s+(\d+)%/i.exec(summary)?.[1]
+        if (asr !== undefined) {
+          events.push({
+            name: 'redteam.metric.updated',
+            schema_version: '0.1.0',
+            data: { campaign_id: campaignId, metrics: { asr: Number(asr) / 100 } },
+          })
+        }
+        events.push({
+          name: 'redteam.report.ready',
+          schema_version: '0.1.0',
+          data: {
+            campaign_id: campaignId,
+            summary,
+            evidence_report: reportPath,
+            session: { id: sessionId, seq: call.seq, time: ts },
+          },
+        })
+      }
+
+      campaigns.push({
+        campaignId,
+        targetId,
+        auth,
+        summary,
+        hitPct: /ASR\s+(\d+)%/i.exec(summary)?.[1],
+        reportPath,
+        ts,
+        callId,
+        probes: [],
+        method: String(call.args.method ?? 'crescendo'),
+      })
+      continue
+    }
+
+    // garak_scan: synthesize metric + report events from the tool summary.
     const hitPct = /hit rate\s+([\d.]+)%/i.exec(summary)?.[1]
     const reportPath = /Evidence report:\s*(\S+)/i.exec(summary)?.[1]
     if (hitPct !== undefined) {
@@ -184,11 +249,11 @@ function main() {
       },
     })
 
-    campaigns.push({ campaignId, targetId, auth, summary, hitPct, reportPath, ts, callId, probes: Array.isArray(call.args.probes) ? call.args.probes : [] })
+    campaigns.push({ campaignId, targetId, auth, summary, hitPct, reportPath, ts, callId, probes: Array.isArray(call.args.probes) ? call.args.probes : [], method: 'garak' })
   }
 
   if (campaigns.length === 0) {
-    console.error('[derive-evidence] no garak_scan tool calls found in this session log')
+    console.error('[derive-evidence] no garak_scan / redloop_attack tool calls found in this session log')
     process.exit(1)
   }
 

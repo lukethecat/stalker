@@ -24,11 +24,16 @@
 - [ ] 首次真实 `garak_scan` 工具调用落 session log 后，用 derive-evidence 派生整链证据
 - [ ] per-probe 发现映射 OWASP / MITRE ATLAS（Phase 3 前的最小映射表）
 
-## Phase 3 — 红队优化回路（attacker/judge 插件）
+## Phase 3 — 红队优化回路（attacker/judge 插件）🔄 进行中
 
-- attacker/judge 双模型最小回路（先 **Crescendo** 一种 + 预算熔断），judge 结果落日志；
-- `redteam.strategy.adjusted`：读 ASR/覆盖度决定下一向量（验证 agentic，对比"跑死列表"）；
-- 全程可回放：整个 campaign 即 session log。
+[`lukethecat/dsh-plugin-warroom-redloop`](https://github.com/lukethecat/dsh-plugin-warroom-redloop) 已发布 v0：
+
+- [x] `redloop_attack` 工具：attacker-LLM 生成 → judge-LLM 打分 → 历史回灌渐进升级（Crescendo）+ 硬预算熔断 + 收敛阈值；
+- [x] C2 事件全链：target.registered / attack.round.completed / strategy.adjusted / finding.logged（OWASP+ATLAS 映射）/ metric.updated / report.ready，11 单测绿（假模型/假目标，免 API key）；
+- [x] 空弹匣：零攻击载荷，方法论与 rubric 只在系统提示词；judge 不可解析时保守不产发现；
+- [x] derive-evidence 支持 redloop_attack 事件派生（campaign JSONL 直读，fixture 验证）；
+- [ ] 本机 dsh 挂载后对授权 mock 靶场跑第一次真实 `redloop_attack`（验证 agentic：直接请求被拒 → 渐进升级绕过）；
+- [ ] 扩展方法档位：GOAT / TAP；judge 校准（人审抽样回灌）。
 
 ## Phase 4 — 区域包 + agent0 recon + purple team
 
