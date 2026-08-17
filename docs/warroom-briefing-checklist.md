@@ -44,6 +44,31 @@
 你按清单发材料 → 我出题（或出题+执行）→ [手动]你回传逐字回复 → 我评估（类目映射+指标+修复建议）
 ```
 
+## 登记册（长期留痕体系）
+
+所有材料与产出落入**私有登记册**（默认 `~/.warroom/registry/`，绝不进公开仓），由
+`scripts/warroom-registry.mjs` 维护——append-only 登记链（每条含上一条的 SHA-256 指纹，
+`verify` 可全量校验防篡改），每场战役一个目录：
+
+| 命令 | 作用 |
+|---|---|
+| `register <intake.json>` | 登记一场战役（授权硬门校验） |
+| `add-questions <campaign> <q.json>` | 挂载题目批次（弹药，私有） |
+| `add-results <campaign> <r.jsonl>` | 追加逐题结果（逐字回复+判定） |
+| `evaluate <campaign>` | 按 GB/T 指标出评估报告 |
+| `list` / `verify` | 战役索引 / 哈希链完整性校验 |
+
+```
+~/.warroom/registry/
+├── registry.jsonl            # 登记链（append-only + 哈希链）
+├── index.md                  # 战役索引（自动生成）
+└── campaigns/<登记号>/
+    ├── intake.json           # 本清单 A–E 的结构化登记
+    ├── questions.json        # 题目批次
+    ├── results.jsonl         # 回传结果（逐字回复）
+    └── evaluation.md         # 评估报告
+```
+
 ## 红线提醒
 
 - 生产环境只走**内部测试通道**；流量与合规风险自担评估。
